@@ -4,6 +4,7 @@ import time
 import json
 import urlparse
 import urllib
+import datetime
 
 import brukva
 
@@ -41,14 +42,37 @@ TWITTER_API_URL = 'https://stream.twitter.com/1/statuses/filter.json'
 ENTIRE_EARTH = urllib.urlencode({'locations': '-180,-90,180,90'})
 
 STREAMING_CLIENT = AsyncHTTPClient()
+CONN_COUNT = 0
+MAX_WAIT = 300
 
 #
 # utility functions
 #
 
-def empty_cb(data):
-    pass
+def time_log(msg):
+    now = datetime.datetime.now()
+    print "[%s] %s" % (now, msg,)
 
+def request_cb(response):
+    # if this func has been called,
+    # we're in need of restarting the connection.
+    
+    # For response codes higher than 200 wait minutes
+    # as per the twitter docs.
+    multiplier = 5
+    if response.code > 200:
+        multiplier = 60
+
+    # reconnect, increase timeout after each disconnect.
+    seconds = CONN_COUNT * multiplier
+    seconds = seconds if seconds < MAX_WAIT else MAX_WAIT
+    set_timeout(datetime.timedelta(seconds=seconds), twitter_connect)
+    CONN_COUNT += 1
+    time_log("Twitter stream disconnected. Reconnection in %d seconds." % seconds)
+
+
+def set_timeout(delay, fn):
+    IOLoop.instance().add_timeout(delay, fn)
 
 def run_next(fn):
     IOLoop.instance().add_callback(fn)
@@ -83,9 +107,7 @@ def tweet_publisher(chunk):
     if chunk: # sometimes the lines are empty.
         REDIS_PUB.publish(REDIS_CHANNEL, chunk)
 
-
-def kickoff_tweet_stream():
-    REDIS_PUB.connect()
+def twitter_connect():
     REQ_PARAMS = {
         'method': 'POST',
         'auth_username': TWITTER_USER,
@@ -94,7 +116,12 @@ def kickoff_tweet_stream():
         'streaming_callback': tweet_publisher,
         'request_timeout':86400,
     }
-    STREAMING_CLIENT.fetch(TWITTER_API_URL, empty_cb, **REQ_PARAMS)
+    STREAMING_CLIENT.fetch(TWITTER_API_URL, request_cb, **REQ_PARAMS)
+
+
+def kickoff_tweet_stream():
+    REDIS_PUB.connect()
+    twitter_connect()
 
 
 def tweet_subscriber(message):
@@ -102,7 +129,10 @@ def tweet_subscriber(message):
     if not data:
         return
 
-    tweet = json.loads(data)
+    try:
+        tweet = json.loads(data)
+    except:
+        return
 
     coords = extract_coords(tweet)        
     if not coords or len(coords) < 2:
@@ -126,7 +156,6 @@ def kickoff_redis_subscription():
 # 
 # HTTP Handlers
 #
-
 
 class IndexHandler(tornado.web.RequestHandler):
     """Regular HTTP handler to serve the map page"""
