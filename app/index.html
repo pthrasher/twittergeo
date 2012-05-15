@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style type="text/css">
+
+@import url("/static/example.css");
+
+#map {
+  background: #021019;
+}
+
+.compass .back {
+  fill: #256574;
+}
+
+.compass .fore, .compass .chevron {
+  stroke: #1AA398;
+}
+
+#copy, #copy a {
+  color: #1AA398;
+}
+
+    </style>
+  </head>
+  <body>
+      <div id="map">
+          <span id="copy">
+              &copy; 2010
+              <a href="http://www.cloudmade.com/">CloudMade</a>,
+              <a href="http://www.openstreetmap.org/">OpenStreetMap</a> contributors,
+              <a href="http://creativecommons.org/licenses/by-sa/2.0/">CCBYSA</a>.
+          </span>
+      </div>
+
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+    <script src="http://underscorejs.org/underscore-min.js"></script>
+    <script type="text/javascript" src="/static/d3.js"></script>
+    <script src="http://cdn.socket.io/stable/socket.io.js"></script>
+    <script type="text/javascript" src="/static/polymaps.js"></script>
+    <script type="text/javascript">
+
+        var s, map, po, layer, blip, events, start;
+        events = 0;
+
+        blip = _.throttle(function (lat,lon,msg){
+        //function blip (lat,lon, msg){
+            var p = map.locationPoint({lat: lat, lon: lon});
+            var color = 'hsl(205,70%,88%)';
+
+            var words = [
+                'fuck',
+                'damn',
+                'ass',
+                'dick',
+                'shit',
+                'bitch'
+            ];
+
+            for (var i=0;i < words.length;i++) {
+                if (msg.indexOf(words[i]) > -1){
+                    color = "#ff0000";
+                    break;
+                }
+            }
+
+            // don't do it if the coords are NaN
+            if (p.x !== p.x || p.y !== p.y) return;
+
+            layer.append("svg:circle")
+              .attr("cx", p.x)
+                .attr("cy", p.y)
+                .attr("r", 0)
+                .attr("class",'')
+                .style("fill", "none")
+                .style("stroke", color)
+                .style("stroke-opacity", 1)
+                .style("stroke-width", 3)
+            .transition()
+                .duration(3000)
+                .ease(Math.sqrt)
+                .attr("r", 75)
+                .style("stroke", 'hsl(205,70%,48%)')
+                .style("stroke-opacity", 0)
+                .style("stroke-width", 0)
+                .remove()
+        }, 10);
+
+        count = _.throttle(function(){
+            if (events < 1) return;
+            var num = events;
+            var oldstart = start;
+            events = 0;
+            now = +new Date();
+            start = now;
+
+
+            var seconds = Math.floor((now - oldstart) / 1000);
+            console.log(Math.floor(num / seconds) + " tweets / sec");
+
+        }, 5000);
+
+        $(function(){
+            po = org.polymaps;
+            map = po.map()
+                .container(d3.select('#map').append("svg:svg").node())
+                .zoom(3)
+                .center({lat:27.57,lon:8})
+                //drag, wheel, dblclick, arrow controls
+                .add(po.interact());
+
+            map.add(po.image()
+                .url(po.url("http://{S}tile.cloudmade.com"
+                    + "/1a1b06b230af4efdbb989ea99e9841af" // http://cloudmade.com/register
+                + "/999/256/{Z}/{X}/{Y}.png")
+                .hosts(["a.", "b.", "c.", ""])));
+
+            map.add(po.compass()
+                .pan("none"));
+
+            layer = d3.select("#map svg").insert("svg:g").attr('class','points');
+
+            s = new io.Socket(window.location.hostname, {port: 80});
+            s.connect();
+            start = +new Date();
+
+            s.addEvent('message', function(data) {
+                // add geo code here
+                latlontweet = data.split('|||')
+                if (latlontweet.length < 3) {
+                    return;
+                }
+                blip(parseFloat(latlontweet[1]), parseFloat(latlontweet[0]), latlontweet[2]);
+                events++;
+                delete latlontweet;
+                count();
+            });
+        });
+    </script>
+  </body>
+</html>
+
+
