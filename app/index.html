@@ -96,6 +96,7 @@
 
 
             var seconds = Math.floor((now - oldstart) / 1000);
+            seconds = seconds < 1 ? 1 : seconds;
             console.log(Math.floor(num / seconds) + " tweets / sec");
 
         }, 5000);
