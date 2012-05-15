@@ -100,6 +100,32 @@
 
         }, 5000);
 
+        reconnect_timeout = null;
+        reconnect = function() {
+            s = new io.Socket(window.location.hostname, {port: 80});
+            s.addEvent('connect', function() {
+                clearTimeout(reconnect_timeout);
+                start = +new Date();
+            });
+            s.addEvent('message', function(data) {
+                // add geo code here
+                latlontweet = data.split('|||')
+                if (latlontweet.length < 3) {
+                    return;
+                }
+                blip(parseFloat(latlontweet[1]), parseFloat(latlontweet[0]), latlontweet[2]);
+                events++;
+                delete latlontweet;
+                count();
+            });
+            s.addEvent('disconnect', function() {
+                reconnect_timeout = setTimeout(reconnect, 5000);
+            });
+
+            s.connect();
+            reconnect_timeout = setTimeout(reconnect, 5000);
+        }
+
         $(function(){
             po = org.polymaps;
             map = po.map()
@@ -119,22 +145,8 @@
                 .pan("none"));
 
             layer = d3.select("#map svg").insert("svg:g").attr('class','points');
+            reconnect();
 
-            s = new io.Socket(window.location.hostname, {port: 80});
-            s.connect();
-            start = +new Date();
-
-            s.addEvent('message', function(data) {
-                // add geo code here
-                latlontweet = data.split('|||')
-                if (latlontweet.length < 3) {
-                    return;
-                }
-                blip(parseFloat(latlontweet[1]), parseFloat(latlontweet[0]), latlontweet[2]);
-                events++;
-                delete latlontweet;
-                count();
-            });
         });
     </script>
   </body>
