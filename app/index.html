@@ -40,8 +40,29 @@
     <script type="text/javascript" src="/static/polymaps.js"></script>
     <script type="text/javascript">
 
-        var s, map, po, layer, blip, events, start;
+        var s, map, po, layer, blip, events, start, drawBlip;
         events = 0;
+
+	drawBlip = function (x, y, duration, startFillColor, endFillColor, startStroke, endStroke, startRadius, endRadius, startColor, endColor) {
+            layer.append("svg:circle")
+              .attr("cx", x)
+                .attr("cy", y)
+                .attr("r", startRadius)
+                .attr("class",'')
+                .style("fill", startFillColor)
+                .style("stroke", startColor)
+                .style("stroke-opacity", startStroke.opacity)
+                .style("stroke-width", startStroke.width)
+            .transition()
+                .duration(duration)
+                .ease(Math.sqrt)
+                .attr("r", endRadius)
+                .style("fill", endFillColor)
+                .style("stroke", endColor)
+                .style("stroke-opacity", endStroke.opacity)
+                .style("stroke-width", endStroke.width)
+                .remove()
+	}
 
         blip = _.throttle(function (lat,lon,msg){
         //function blip (lat,lon, msg){
@@ -56,10 +77,11 @@
                 'shit',
                 'bitch'
             ];
+	    var hasBadWord = false;
 
             for (var i=0;i < words.length;i++) {
                 if (msg.indexOf(words[i]) > -1){
-                    color = "#ff0000";
+		    hasBadWord = true;
                     break;
                 }
             }
@@ -67,23 +89,12 @@
             // don't do it if the coords are NaN
             if (p.x !== p.x || p.y !== p.y) return;
 
-            layer.append("svg:circle")
-              .attr("cx", p.x)
-                .attr("cy", p.y)
-                .attr("r", 0)
-                .attr("class",'')
-                .style("fill", "none")
-                .style("stroke", color)
-                .style("stroke-opacity", 1)
-                .style("stroke-width", 3)
-            .transition()
-                .duration(3000)
-                .ease(Math.sqrt)
-                .attr("r", 75)
-                .style("stroke", 'hsl(205,70%,48%)')
-                .style("stroke-opacity", 0)
-                .style("stroke-width", 0)
-                .remove()
+	    if (hasBadWord) {
+	        drawBlip(p.x, p.y, 500, '#FF0000', 'hsl(205,70%,48%)', {width:0, opacity:0}, {width:0, opacity:0}, 75, 0, 'none', 'none');
+	    } else {
+	        drawBlip(p.x, p.y, 1000, 'none', 'none', {width:3, opacity:1}, {width:0, opacity:0}, 0, 75, 'hsl(205,70%,88%)', 'hsl(205,70%,48%)');
+	    }
+
         }, 10);
 
         count = _.throttle(function(){
